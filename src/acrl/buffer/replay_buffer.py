@@ -1,4 +1,4 @@
-from typing import NamedTuple, Tuple
+from typing import Dict, NamedTuple, Tuple
 
 import torch
 import numpy as np
@@ -15,22 +15,8 @@ class SampleBatch(NamedTuple):
 
 
 class ReplayBuffer:
-    def __init__(
-        self,
-        action_shape: Tuple[int, ...],
-        device: torch.device,
-        discount: float,
-        buffer_length: int,
-        n_steps: int,
-        state_shape: Tuple[int, ...],
-    ):
-        self._device = device
-        self._max_buffered_samples = buffer_length
-        self._state_shape = state_shape
-        self._action_shape = action_shape
-        self._discount = discount
-        self._n_steps = n_steps
-        self.reset()
+    def __init__(self, config: Dict):
+        self._setup(config)
 
     def reset(self):
         self._allocate_buffers()
@@ -134,3 +120,18 @@ class ReplayBuffer:
     @property
     def n_buffered(self) -> int:
         return min(self._n_buffered, self._max_buffered_samples)
+
+    def _setup(self, config: Dict):
+        self._unpack_config(config)
+        self._setup_accelerator()
+        self.reset()
+
+    def _unpack_config(self, config: Dict):
+        self._max_buffered_samples = config["training"]["buffer_size"]
+        self._state_shape = config["sac"]["state_dim"]
+        self._action_shape = config["sac"]["action_dim"]
+        self._discount = config["sac"]["discount"]
+        self._n_steps = config["sac"]["n_steps"]
+
+    def _setup_accelerator(self):
+        self._device = "cuda" if torch.cuda.is_available() else "cpu"
