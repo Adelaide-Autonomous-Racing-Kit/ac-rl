@@ -51,6 +51,21 @@ class SACAgent(AssettoCorsaInterface):
     def restart_condition(self, observation: Dict) -> bool:
         return False
 
+    def _is_going_backwards(self, observation: Dict) -> bool:
+        return False
+    
+    def _is_outside_track_limits(self, observation: Dict) -> bool:
+        return False
+    
+    def _is_progressing_too_slowly(self, observation: Dict) -> bool:
+        return False
+    
+    def _is_agent_off_raceline(self, observation: Dict) -> bool:
+        return False
+    
+    
+
+
     def setup(self):
         self._sac = SoftActorCritic(self.cfg["sac"])
         self._replay_buffer = ReplayBuffer(self.cfg)
