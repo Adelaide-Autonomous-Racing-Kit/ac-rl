@@ -1,4 +1,4 @@
-from typing import List, NamedTuple, Tuple
+from typing import NamedTuple, Tuple
 
 import torch
 import numpy as np
@@ -115,7 +115,7 @@ class ReplayBuffer:
         return self._sample_batch(indices)
 
     def _sample_indices(self, batch_size: int) -> np.array:
-        return np.random.randint(low=0, high=self._n, size=batch_size)
+        return np.random.randint(low=0, high=self.n_buffered, size=batch_size)
 
     def _sample_batch(self, indices: np.array) -> SampleBatch:
         states = self._sample_array(self._states, indices)
@@ -129,4 +129,8 @@ class ReplayBuffer:
         return torch.tensor(array[indices], dtype=torch.float, device=self._device)
 
     def __len__(self):
+        return self.n_buffered
+
+    @property
+    def n_buffered(self) -> int:
         return min(self._n_buffered, self._max_buffered_samples)
