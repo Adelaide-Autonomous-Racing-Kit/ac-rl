@@ -44,7 +44,7 @@ class SACAgent(AssettoCorsaInterface):
         while (time.time_ns() - start_time) < 40_000_000:
             # 25Hz rate limit
             continue
-        return self._current_action.copy()
+        return self._current_action
     
     def _update_control(self, action: np.array) -> np.array:
         steer_rate = CONTROL_LIMITS.steer.rate
