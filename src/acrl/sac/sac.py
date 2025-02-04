@@ -5,6 +5,7 @@ import numpy as np
 from torch.optim import Adam
 
 from acrl.sac.modelling.policies import GaussianActionPolicy, TwinActionPolicy
+from acrl.buffer.replay_buffer import SampleBatch
 
 
 class SoftActorCritic:
@@ -37,25 +38,23 @@ class SoftActorCritic:
         tau = self._target_update_coef
         target.data.copy_(target.data * (1.0 - tau) + source.data * tau)
 
-    def update_online_networks(self, batch, writer):
+    def update_online_networks(self, batch: SampleBatch):
         self._n_learning_steps += 1
-        stats = self.update_policy_and_entropy(batch, writer)
-        self.update_q_functions(batch, writer)
+        stats = self.update_policy_and_entropy(batch)
+        self.update_q_functions(batch)
         return stats
 
     def update_policy_and_entropy(
         self,
-        batch: torch.Tensor,
-        writer,
+        batch: SampleBatch,
     ) -> Union[Dict, None]:
-        states, _ = batch
-        policy_loss, entropies = self._policy_loss(states)
+        policy_loss, entropies = self._policy_loss(batch.states)
         self._step_policy_optimiser(policy_loss)
         entropy_loss = self._entropy_loss(entropies)
         self._step_alpha_optimiser(entropy_loss)
         self._alpha = self._log_alpha.detach().exp()
         return self._maybe_log_policy_update(
-            policy_loss, entropy_loss, entropies, writer
+            policy_loss, entropy_loss, entropies
         )
 
     def _step_policy_optimiser(self, loss: torch.Tensor):
@@ -67,9 +66,9 @@ class SoftActorCritic:
     def _step_q_optimiser(self, loss: torch.Tensor):
         self._step_optimiser(self._q_optim, loss)
 
-    def _step_optimiser(self, optimiser: torch.Optimizer, loss: torch.Tensor):
+    def _step_optimiser(self, optimiser: torch.optim.Optimizer, loss: torch.Tensor):
         optimiser.zero_grad()
-        loss.backwards(retain_grpah=False)
+        loss.backward(retain_graph=False)
         optimiser.step()
 
     def _policy_loss(self, states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
@@ -82,7 +81,7 @@ class SoftActorCritic:
         policy_loss = torch.mean((-qs - self._alpha * entropies))
         return policy_loss, entropies.detach_()
 
-    def _entropy_loss(self, entropies: torch.Tesnor) -> torch.Tensor:
+    def _entropy_loss(self, entropies: torch.Tensor) -> torch.Tensor:
         # Increase alpha when entropy is less than target entropy, vice versa.
         entropy_loss = -torch.mean(self._log_alpha * (self._target_entropy - entropies))
         return entropy_loss
@@ -92,10 +91,9 @@ class SoftActorCritic:
         policy_loss: torch.Tensor,
         entropy_loss: torch.Tensor,
         entropies: torch.Tensor,
-        writer,
     ) -> Union[Dict, None]:
         if self._is_logging_step():
-            return self._log_policy_update(policy_loss, entropy_loss, entropies, writer)
+            return self._log_policy_update(policy_loss, entropy_loss, entropies)
 
     def _is_logging_step(self) -> bool:
         return self._n_learning_steps % self._log_interval == 0
@@ -105,15 +103,14 @@ class SoftActorCritic:
         policy_loss: torch.Tensor,
         entropy_loss: torch.Tensor,
         entropies: torch.Tensor,
-        writer,
     ) -> Dict:
         policy_loss = policy_loss.detach().item()
         entropy_loss = entropy_loss.detach().item()
         entropies = entropies.detach().mean().item()
-        writer.add_scalar("loss/policy", policy_loss, self._n_learning_steps)
-        writer.add_scalar("loss/entropy", entropy_loss, self._n_learning_steps)
-        writer.add_scalar("stats/alpha", self._alpha.item(), self._n_learning_steps)
-        writer.add_scalar("stats/entropy", entropies, self._n_learning_steps)
+        # writer.add_scalar("loss/policy", policy_loss, self._n_learning_steps)
+        # writer.add_scalar("loss/entropy", entropy_loss, self._n_learning_steps)
+        # writer.add_scalar("stats/alpha", self._alpha.item(), self._n_learning_steps)
+        # writer.add_scalar("stats/entropy", entropies, self._n_learning_steps)
         to_log = {
             "policy_loss": policy_loss,
             "entropy_loss": entropy_loss,
@@ -124,12 +121,11 @@ class SoftActorCritic:
 
     def update_q_functions(
         self,
-        batch: torch.Tensor,
-        writer,
+        batch: SampleBatch,
         q1_loss_weights=None,
         q2_loss_weights=None,
     ):
-        states, actions, rewards, next_states, dones = batch
+        actions, dones, next_states, rewards, states = batch.unpack()
         current_q1, current_q2 = self._online_q(states, actions)
         target_qs = self._target_qs(rewards, next_states, dones)
         q_loss = self._q_loss(
@@ -140,30 +136,28 @@ class SoftActorCritic:
             q2_loss_weights,
         )
         self._step_q_optimiser(q_loss)
-        self._maybe_log_q_update(q_loss, current_q1, current_q2, writer)
+        self._maybe_log_q_update(q_loss, current_q1, current_q2)
 
     def _maybe_log_q_update(
         self,
         q_loss: torch.Tensor,
         current_q1: torch.Tensor,
         current_q2: torch.Tensor,
-        writer,
     ):
         if self._is_logging_step():
-            self._log_q_update(q_loss, current_q1, current_q2, writer)
+            self._log_q_update(q_loss, current_q1, current_q2)
 
     def _log_q_update(
         self,
         q_loss: torch.Tensor,
         current_q1: torch.Tensor,
         current_q2: torch.Tensor,
-        writer,
     ):
         q1_mean = current_q1.detach().mean().item()
         q2_mean = current_q2.detach().mean().item()
-        writer.add_scalar("loss/Q", q_loss.detach().item(), self._n_learning_steps)
-        writer.add_scalar("stats/mean_Q1", q1_mean, self._n_learning_steps)
-        writer.add_scalar("stats/mean_Q2", q2_mean, self._n_learning_steps)
+        # writer.add_scalar("loss/Q", q_loss.detach().item(), self._n_learning_steps)
+        # writer.add_scalar("stats/mean_Q1", q1_mean, self._n_learning_steps)
+        # writer.add_scalar("stats/mean_Q2", q2_mean, self._n_learning_steps)
 
     def _target_qs(
         self,
@@ -202,7 +196,7 @@ class SoftActorCritic:
         self._setup_policies()
 
     def _unpack_config(self, config: Dict):
-        self._model_config = config["model"]
+        self._model_config = config["policy"]
         self._gamma = config["gamma"]
         self._n_steps = config["n_steps"]
         self._discount = self._gamma**self._n_steps
@@ -220,10 +214,13 @@ class SoftActorCritic:
 
     def _setup_policies(self):
         self._policy = GaussianActionPolicy(self._model_config)
+        self._policy.to(self._device)
         self._online_q = TwinActionPolicy(self._model_config)
+        self._online_q.to(self._device)
         self._target_q = TwinActionPolicy(self._model_config)
         self._target_q.load_state_dict(self._online_q.state_dict())
         self._target_q.eval()
+        self._target_q.to(self._device)
         self._policy_optim = Adam(self._policy.parameters(), lr=self._policy_lr)
         self._q_optim = Adam(self._online_q.parameters(), lr=self._q_lr)
         self._target_entropy = -float(self._model_config["output_dim"])

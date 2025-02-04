@@ -13,6 +13,9 @@ class SampleBatch(NamedTuple):
     rewards: torch.Tensor
     states: torch.Tensor
 
+    def unpack(self)-> Tuple[torch.Tensor,...]:
+        return self.actions, self.dones, self.next_states, self.rewards, self.states
+
 
 class ReplayBuffer:
     def __init__(self, config: Dict):
@@ -44,12 +47,12 @@ class ReplayBuffer:
         return self._allocate_empty_array((self._max_buffered_samples, 1))
 
     @property
-    def _state_buffer_shape(self) -> Tuple[int, ...]:
-        return (self._max_buffered_samples,) + self._state_shape
+    def _state_buffer_shape(self) -> Tuple[int, int]:
+        return (self._max_buffered_samples, self._state_shape)
 
     @property
-    def _action_buffer_shape(self) -> Tuple[int, ...]:
-        return (self._max_buffered_samples,) + self._action_shape
+    def _action_buffer_shape(self) -> Tuple[int, int]:
+        return (self._max_buffered_samples, self._action_shape)
 
     def _allocate_empty_array(self, size: Tuple[int, ...]) -> np.array:
         return np.empty(size, dtype=np.float32)
@@ -128,9 +131,9 @@ class ReplayBuffer:
 
     def _unpack_config(self, config: Dict):
         self._max_buffered_samples = config["training"]["buffer_size"]
-        self._state_shape = config["sac"]["state_dim"]
-        self._action_shape = config["sac"]["action_dim"]
-        self._discount = config["sac"]["discount"]
+        self._state_shape = config["sac"]["policy"]["input_dim"]
+        self._action_shape = config["sac"]["policy"]["output_dim"]
+        self._discount = config["sac"]["gamma"]
         self._n_steps = config["sac"]["n_steps"]
 
     def _setup_accelerator(self):

@@ -23,15 +23,13 @@ class ActionPolicy(nn.Module):
         feature_dim = config["feature_dim"]
         output_dim = config["output_dim"]
         self._model = nn.Sequential(
-            [
                 nn.Linear(input_dim, feature_dim),
-                nn.RelU(),
+                nn.ReLU(),
                 nn.Linear(feature_dim, feature_dim),
-                nn.RelU(),
+                nn.ReLU(),
                 nn.Linear(feature_dim, feature_dim),
-                nn.RelU(),
+                nn.ReLU(),
                 nn.Linear(feature_dim, output_dim),
-            ]
         ).apply(xavier_initialisation)
 
     def __call__(self, x: Tensor) -> Tensor:
@@ -41,21 +39,22 @@ class ActionPolicy(nn.Module):
 class TwinActionPolicy(nn.Module):
     def __init__(self, config: Dict):
         super().__init__()
-        input_dim = config["input_dim"]
-        feature_dim = config["feature_dim"]
-        output_dim = config["output_dim"]
-        self._model_1 = ActionPolicy(input_dim, feature_dim, output_dim)
-        self._model_2 = ActionPolicy(input_dim, feature_dim, output_dim)
+        config = config.copy()
+        config["input_dim"] = config["input_dim"] + config["output_dim"]
+        self._model_1 = ActionPolicy(config)
+        self._model_2 = ActionPolicy(config)
 
     def __call__(self, actions: Tensor, states: Tensor) -> Tuple[Tensor, Tensor]:
         x = torch.cat([states, actions], dim=1)
         return self._model_1(x), self._model_2(x)
 
 
-class GaussianActionPolicy(nn.Model):
+class GaussianActionPolicy(nn.Module):
 
     def __init__(self, config: Dict):
         super().__init__()
+        config = config.copy()
+        config["output_dim"] = 2 * config["output_dim"]
         self._model = ActionPolicy(config)
 
     def __call__(self, states: torch.Tensor) -> Tuple[Tensor, Tensor, Tensor]:
