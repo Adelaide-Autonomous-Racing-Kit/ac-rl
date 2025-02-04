@@ -1,20 +1,20 @@
-import time
 from collections import namedtuple
+import time
 from typing import Dict
-import numpy as np
 
 from aci.interface import AssettoCorsaInterface
-from acrl.sac.sac import SoftActorCritic
 from acrl.buffer.replay_buffer import ReplayBuffer
 from acrl.buffer.utils import BehaviouralSample
+from acrl.sac.sac import SoftActorCritic
 from acrl.utils import load
 from acrl.utils.state import EnvironmentState
+import numpy as np
 
-Limit = namedtuple('Limits', 'min max rate')
-ControlLimits = namedtuple('ControlLimits', 'steer pedal')
+Limit = namedtuple("Limits", "min max rate")
+ControlLimits = namedtuple("ControlLimits", "steer pedal")
 
-STEERING_LIMIT = Limit(-1.0, 1.0, 600/180 * 1/25)
-PEDAL_LIMIT = Limit(0.0, 1.0, 1200/100 * 1/25) # Rate * control frequency
+STEERING_LIMIT = Limit(-1.0, 1.0, 600 / 180 * 1 / 25)
+PEDAL_LIMIT = Limit(0.0, 1.0, 1200 / 100 * 1 / 25)  # Rate * control frequency
 CONTROL_LIMITS = ControlLimits(STEERING_LIMIT, PEDAL_LIMIT)
 
 MINIMUM_SPEED_KMH = 3.6
@@ -34,7 +34,7 @@ class SACAgent(AssettoCorsaInterface):
         action = self._get_action(state)
         self._update_control(action)
         self._update_policy()
-        
+
         self._previous_action = action
         self._previous_state = state
         self._previous_is_done = self._is_done
@@ -45,7 +45,7 @@ class SACAgent(AssettoCorsaInterface):
             # 25Hz rate limit
             continue
         return self._current_action
-    
+
     def _update_control(self, action: np.array) -> np.array:
         steer_rate = CONTROL_LIMITS.steer.rate
         pedal_rate = CONTROL_LIMITS.pedal.rate
@@ -69,10 +69,10 @@ class SACAgent(AssettoCorsaInterface):
                 state=self._previous_state.representation,
             )
             self._replay_buffer.append(sample)
-    
+
     def _reward(self, state: EnvironmentState) -> float:
-        reward = state['speed_kmh']  # * ( 1.0 - (np.abs( state["gap"]) / 12.00))
-        reward /= 300.0 # normalize
+        reward = state["speed_kmh"]  # * ( 1.0 - (np.abs( state["gap"]) / 12.00))
+        reward /= 300.0  # normalize
         return reward
 
     def _get_action(self, state: EnvironmentState) -> np.array:
@@ -91,7 +91,7 @@ class SACAgent(AssettoCorsaInterface):
         return (action - 0.5) * 2
 
     def _update_policy(self):
-        if  self._n_actions > self._start_steps:
+        if self._n_actions > self._start_steps:
             if self._n_actions % self._update_interval == 0:
                 batch = self._replay_buffer.sample(self._batch_size)
                 train_stats = self._sac.update_online_networks(batch)
@@ -113,27 +113,27 @@ class SACAgent(AssettoCorsaInterface):
         is_done = is_done or self._is_progressing_too_slowly(observation)
         is_done = is_done or self._is_agent_off_raceline(observation)
         return is_done
-    
+
     def _is_outside_track_limits(self, observation: Dict) -> bool:
         is_done = False
-        if observation['state']["number_of_tyres_out"] > 2:
+        if observation["state"]["number_of_tyres_out"] > 2:
             is_done = True
         return is_done
-    
+
     def _is_progressing_too_slowly(self, observation: Dict) -> bool:
         is_done = False
-        if observation['state']["speed_kmh"] < MINIMUM_SPEED_KMH:
+        if observation["state"]["speed_kmh"] < MINIMUM_SPEED_KMH:
             self._minimum_speed_patience -= 1
         else:
             self._minimum_speed_patience = RESTART_PATIENCE
         if self._minimum_speed_patience < 1:
             is_done = True
         return is_done
-    
+
     def _is_agent_off_raceline(self, observation: Dict) -> bool:
         is_done = False
         return is_done
-    
+
     def on_restart(self):
         self._reset_episode()
 

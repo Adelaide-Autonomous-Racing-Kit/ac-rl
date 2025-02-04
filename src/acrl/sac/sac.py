@@ -1,11 +1,10 @@
 from typing import Dict, Tuple, Union
 
-import torch
-import numpy as np
-from torch.optim import Adam
-
-from acrl.sac.modelling.policies import GaussianActionPolicy, TwinActionPolicy
 from acrl.buffer.replay_buffer import SampleBatch
+from acrl.sac.modelling.policies import GaussianActionPolicy, TwinActionPolicy
+import numpy as np
+import torch
+from torch.optim import Adam
 
 
 class SoftActorCritic:
@@ -53,9 +52,7 @@ class SoftActorCritic:
         entropy_loss = self._entropy_loss(entropies)
         self._step_alpha_optimiser(entropy_loss)
         self._alpha = self._log_alpha.detach().exp()
-        return self._maybe_log_policy_update(
-            policy_loss, entropy_loss, entropies
-        )
+        return self._maybe_log_policy_update(policy_loss, entropy_loss, entropies)
 
     def _step_policy_optimiser(self, loss: torch.Tensor):
         self._step_optimiser(self._policy_optim, loss)

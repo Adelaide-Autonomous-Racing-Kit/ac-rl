@@ -1,9 +1,8 @@
 from typing import Dict, Tuple
 
 import torch
-from torch import nn
+from torch import Tensor, nn
 from torch.distributions import Normal
-from torch import Tensor
 
 MAX_STDEV = 2
 MIN_STDEV = -20
@@ -23,13 +22,13 @@ class ActionPolicy(nn.Module):
         feature_dim = config["feature_dim"]
         output_dim = config["output_dim"]
         self._model = nn.Sequential(
-                nn.Linear(input_dim, feature_dim),
-                nn.ReLU(),
-                nn.Linear(feature_dim, feature_dim),
-                nn.ReLU(),
-                nn.Linear(feature_dim, feature_dim),
-                nn.ReLU(),
-                nn.Linear(feature_dim, output_dim),
+            nn.Linear(input_dim, feature_dim),
+            nn.ReLU(),
+            nn.Linear(feature_dim, feature_dim),
+            nn.ReLU(),
+            nn.Linear(feature_dim, feature_dim),
+            nn.ReLU(),
+            nn.Linear(feature_dim, output_dim),
         ).apply(xavier_initialisation)
 
     def __call__(self, x: Tensor) -> Tensor:

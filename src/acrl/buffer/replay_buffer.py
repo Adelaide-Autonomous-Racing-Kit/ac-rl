@@ -1,9 +1,9 @@
 from typing import Dict, NamedTuple, Tuple
 
-import torch
-import numpy as np
 from acrl.buffer.n_step_buffer import NStepBuffer
 from acrl.buffer.utils import BehaviouralSample
+import numpy as np
+import torch
 
 
 class SampleBatch(NamedTuple):
@@ -13,7 +13,7 @@ class SampleBatch(NamedTuple):
     rewards: torch.Tensor
     states: torch.Tensor
 
-    def unpack(self)-> Tuple[torch.Tensor,...]:
+    def unpack(self) -> Tuple[torch.Tensor, ...]:
         return self.actions, self.dones, self.next_states, self.rewards, self.states
 
 

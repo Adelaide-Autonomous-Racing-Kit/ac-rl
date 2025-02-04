@@ -1,7 +1,7 @@
 from collections import deque
 
-import numpy as np
 from acrl.buffer.utils import BehaviouralSample, NStepBehaviouralSample
+import numpy as np
 
 
 class NStepBuffer:
