@@ -15,7 +15,7 @@ def xavier_initialisation(layer: nn.Module, gain=1.0):
             nn.init.constant_(layer.bias, 0)
 
 
-class ActionPolicy(nn.Module):
+class MLP(nn.Module):
     def __init__(self, config: Dict):
         super().__init__()
         input_dim = config["input_dim"]
@@ -35,17 +35,18 @@ class ActionPolicy(nn.Module):
         return self._model(x)
 
 
-class TwinActionPolicy(nn.Module):
+class TwinQNetwork(nn.Module):
     def __init__(self, config: Dict):
         super().__init__()
         config = config.copy()
         config["input_dim"] = config["input_dim"] + config["output_dim"]
-        self._model_1 = ActionPolicy(config)
-        self._model_2 = ActionPolicy(config)
+        config["output_dim"] = 1
+        self._q_model_1 = MLP(config)
+        self._q_model_2 = MLP(config)
 
     def __call__(self, actions: Tensor, states: Tensor) -> Tuple[Tensor, Tensor]:
         x = torch.cat([states, actions], dim=1)
-        return self._model_1(x), self._model_2(x)
+        return self._q_model_1(x), self._q_model_2(x)
 
 
 class GaussianActionPolicy(nn.Module):
@@ -54,7 +55,7 @@ class GaussianActionPolicy(nn.Module):
         super().__init__()
         config = config.copy()
         config["output_dim"] = 2 * config["output_dim"]
-        self._model = ActionPolicy(config)
+        self._model = MLP(config)
 
     def __call__(self, states: torch.Tensor) -> Tuple[Tensor, Tensor, Tensor]:
         means, log_stdvs = torch.chunk(self._model(states), 2, dim=-1)

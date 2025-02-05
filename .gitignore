@@ -136,3 +136,4 @@ envs
 .DS_Store
 
 envs/
+wandb/

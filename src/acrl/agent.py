@@ -9,6 +9,7 @@ from acrl.sac.sac import SoftActorCritic
 from acrl.utils import load
 from acrl.utils.state import EnvironmentState
 import numpy as np
+import wandb
 
 Limit = namedtuple("Limits", "min max rate")
 ControlLimits = namedtuple("ControlLimits", "steer pedal")
@@ -59,20 +60,22 @@ class SACAgent(AssettoCorsaInterface):
         np.clip(self._current_action, minimums, maximums, self._current_action)
 
     def _update_buffer(self, state: EnvironmentState):
+        reward = self._reward(state)
         # TODO: Move buffering into another process
         if self._previous_state is not None:
             sample = BehaviouralSample(
                 action=self._previous_action,
                 done=self._previous_is_done,
-                reward=self._reward(state),
+                reward=reward,
                 next_state=state.representation,
                 state=self._previous_state.representation,
             )
             self._replay_buffer.append(sample)
+        self._episode_reward += reward
 
     def _reward(self, state: EnvironmentState) -> float:
         reward = state["speed_kmh"]  # * ( 1.0 - (np.abs( state["gap"]) / 12.00))
-        reward /= 300.0  # normalize
+        # reward /= 300.0  # normalize
         return reward
 
     def _get_action(self, state: EnvironmentState) -> np.array:
@@ -88,7 +91,8 @@ class SACAgent(AssettoCorsaInterface):
     def _random_action(self) -> np.array:
         action = np.random.rand(3)
         # Rescale to be between [-1., 1]
-        return (action - 0.5) * 2
+        action = (action - 0.5) * 2
+        return action
 
     def _update_policy(self):
         if self._n_actions > self._start_steps:
@@ -102,7 +106,7 @@ class SACAgent(AssettoCorsaInterface):
             self._sac.update_target_networks()
 
     def teardown(self):
-        pass
+        self._wandb_run.finish()
 
     def termination_condition(self, observation: Dict) -> bool:
         return False
@@ -135,18 +139,31 @@ class SACAgent(AssettoCorsaInterface):
         return is_done
 
     def on_restart(self):
+        wandb.log({"policy/episode_reward": self._episode_reward}, self._n_episodes)
         self._reset_episode()
+        self._n_episodes += 1
 
     def setup(self):
+        self._setup_wandb()
         self._sac = SoftActorCritic(self.cfg["sac"])
         self._replay_buffer = ReplayBuffer(self.cfg)
         self._start_steps = self.cfg["training"]["start_steps"]
         self._update_interval = self.cfg["training"]["update_interval"]
         self._batch_size = self.cfg["training"]["batch_size"]
         self._n_actions = 0
+        self._n_episodes = 0
         self._reset_episode()
 
+    def _setup_wandb(self):
+        config = self.cfg["wandb"]
+        self._wandb_run = wandb.init(
+            entity=config["entity"],
+            project=config["project_name"],
+            name=config["run_name"],
+        )
+
     def _reset_episode(self):
+        self._episode_reward = 0
         self._current_action = np.array([0.0, 0.0, 0.0])
         self._is_done = False
         self._previous_state = None

@@ -1,9 +1,10 @@
 from typing import Dict, Tuple, Union
 
 from acrl.buffer.replay_buffer import SampleBatch
-from acrl.sac.modelling.policies import GaussianActionPolicy, TwinActionPolicy
+from acrl.sac.modelling.policies import GaussianActionPolicy, TwinQNetwork
 import numpy as np
 import torch
+import wandb
 from torch.optim import Adam
 
 
@@ -72,7 +73,7 @@ class SoftActorCritic:
         # Resample actions to calculate expectations of Q.
         sampled_actions, entropies, _ = self._policy(states)
         # Expectations of Q with clipped double Q technique.
-        qs1, qs2 = self._online_q(states, sampled_actions)
+        qs1, qs2 = self._online_q(sampled_actions, states)
         qs = torch.min(qs1, qs2)
         # Policy objective is maximization of (Q + alpha * entropy).
         policy_loss = torch.mean((-qs - self._alpha * entropies))
@@ -104,16 +105,13 @@ class SoftActorCritic:
         policy_loss = policy_loss.detach().item()
         entropy_loss = entropy_loss.detach().item()
         entropies = entropies.detach().mean().item()
-        # writer.add_scalar("loss/policy", policy_loss, self._n_learning_steps)
-        # writer.add_scalar("loss/entropy", entropy_loss, self._n_learning_steps)
-        # writer.add_scalar("stats/alpha", self._alpha.item(), self._n_learning_steps)
-        # writer.add_scalar("stats/entropy", entropies, self._n_learning_steps)
         to_log = {
-            "policy_loss": policy_loss,
-            "entropy_loss": entropy_loss,
-            "alpha": self._alpha.item(),
-            "entropy": entropies,
+            "policy/policy_loss": policy_loss,
+            "policy/entropy_loss": entropy_loss,
+            "policy/alpha": self._alpha.item(),
+            "policy/entropy_mean": entropies,
         }
+        wandb.log(to_log, self._n_learning_steps)
         return to_log
 
     def update_q_functions(
@@ -123,7 +121,7 @@ class SoftActorCritic:
         q2_loss_weights=None,
     ):
         actions, dones, next_states, rewards, states = batch.unpack()
-        current_q1, current_q2 = self._online_q(states, actions)
+        current_q1, current_q2 = self._online_q(actions, states)
         target_qs = self._target_qs(rewards, next_states, dones)
         q_loss = self._q_loss(
             current_q1,
@@ -152,9 +150,12 @@ class SoftActorCritic:
     ):
         q1_mean = current_q1.detach().mean().item()
         q2_mean = current_q2.detach().mean().item()
-        # writer.add_scalar("loss/Q", q_loss.detach().item(), self._n_learning_steps)
-        # writer.add_scalar("stats/mean_Q1", q1_mean, self._n_learning_steps)
-        # writer.add_scalar("stats/mean_Q2", q2_mean, self._n_learning_steps)
+        to_log = {
+            "Q/Q_loss": q_loss.detach().item(),
+            "Q/Q1_mean": q1_mean,
+            "Q/Q2_mean": q2_mean,
+        }
+        wandb.log(to_log, self._n_learning_steps)
 
     def _target_qs(
         self,
@@ -164,7 +165,7 @@ class SoftActorCritic:
     ) -> torch.Tensor:
         with torch.no_grad():
             next_actions, next_entropies, _ = self._policy(next_states)
-            next_qs1, next_qs2 = self._target_q(next_states, next_actions)
+            next_qs1, next_qs2 = self._target_q(next_actions, next_states)
             next_qs = torch.min(next_qs1, next_qs2) + self._alpha * next_entropies
         target_qs = rewards + (1.0 - dones) * self._discount * next_qs
         return target_qs
@@ -212,9 +213,9 @@ class SoftActorCritic:
     def _setup_policies(self):
         self._policy = GaussianActionPolicy(self._model_config)
         self._policy.to(self._device)
-        self._online_q = TwinActionPolicy(self._model_config)
+        self._online_q = TwinQNetwork(self._model_config)
         self._online_q.to(self._device)
-        self._target_q = TwinActionPolicy(self._model_config)
+        self._target_q = TwinQNetwork(self._model_config)
         self._target_q.load_state_dict(self._online_q.state_dict())
         self._target_q.eval()
         self._target_q.to(self._device)

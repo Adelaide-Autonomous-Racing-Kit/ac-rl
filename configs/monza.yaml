@@ -1,3 +1,8 @@
+wandb:
+    entity: aiml-l2r
+    project_name: ac-sac
+    run_name: ac-sac-v0.1
+
 training:
     n_train_steps: 10_000_000
     batch_size: 128
