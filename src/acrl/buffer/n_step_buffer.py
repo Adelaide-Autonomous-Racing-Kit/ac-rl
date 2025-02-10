@@ -41,7 +41,9 @@ class NStepBuffer:
 
     @property
     def _rewards(self) -> np.array:
-        return np.array([sample.reward for sample in self._samples])
+        rewards = np.array([sample.reward for sample in self._samples])
+        to_pad = self._n_steps - len(self._samples)
+        return np.pad(rewards, (0, to_pad), "constant")
 
     def __len__(self) -> int:
         return len(self._samples)

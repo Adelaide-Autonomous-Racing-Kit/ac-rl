@@ -14,12 +14,16 @@ import wandb
 Limit = namedtuple("Limits", "min max rate")
 ControlLimits = namedtuple("ControlLimits", "steer pedal")
 
-STEERING_LIMIT = Limit(-1.0, 1.0, 600 / 180 * 1 / 25)
-PEDAL_LIMIT = Limit(0.0, 1.0, 1200 / 100 * 1 / 25)  # Rate * control frequency
+SAMPLING_FREQUENCY = 25  # Hz
+
+STEERING_LIMIT = Limit(-1.0, 1.0, 600 / 180 * 1 / SAMPLING_FREQUENCY)
+PEDAL_LIMIT = Limit(
+    0.0, 1.0, 1200 / 100 * 1 / SAMPLING_FREQUENCY
+)  # Rate * control frequency
 CONTROL_LIMITS = ControlLimits(STEERING_LIMIT, PEDAL_LIMIT)
 
 MINIMUM_SPEED_KMH = 3.6
-RESTART_PATIENCE = 10
+RESTART_PATIENCE = 10 * SAMPLING_FREQUENCY
 
 
 class SACAgent(AssettoCorsaInterface):
@@ -30,22 +34,21 @@ class SACAgent(AssettoCorsaInterface):
 
     def behaviour(self, observation: Dict) -> np.array:
         start_time = time.time_ns()
-        state = EnvironmentState(observation)
-        self._update_buffer(state)
-        action = self._get_action(state)
+        representation = self._environment_state.step(observation)
+        self._update_buffer(representation)
+
+        action = self._get_action(representation)
         self._update_control(action)
-        self._update_policy()
+        self.act(self._current_action)
+
+        self._maybe_update_policy()
 
         self._previous_action = action
-        self._previous_state = state
-        self._previous_is_done = self._is_done
+        self._previous_representation = representation
 
-        print("Action")
-        print(self._current_action)
         while (time.time_ns() - start_time) < 40_000_000:
             # 25Hz rate limit
             continue
-        return self._current_action
 
     def _update_control(self, action: np.array) -> np.array:
         steer_rate = CONTROL_LIMITS.steer.rate
@@ -59,32 +62,34 @@ class SACAgent(AssettoCorsaInterface):
         maximums = np.array([steer_max, pedal_max, pedal_max])
         np.clip(self._current_action, minimums, maximums, self._current_action)
 
-    def _update_buffer(self, state: EnvironmentState):
-        reward = self._reward(state)
-        # TODO: Move buffering into another process
-        if self._previous_state is not None:
+    def _update_buffer(self, representation: np.array):
+        reward = self._reward()
+        if self._previous_representation is not None:
             sample = BehaviouralSample(
                 action=self._previous_action,
-                done=self._previous_is_done,
+                done=self._is_done,
                 reward=reward,
-                next_state=state.representation,
-                state=self._previous_state.representation,
+                next_state=representation,
+                state=self._previous_representation,
             )
             self._replay_buffer.append(sample)
         self._episode_reward += reward
 
-    def _reward(self, state: EnvironmentState) -> float:
-        reward = state["speed_kmh"]  # * ( 1.0 - (np.abs( state["gap"]) / 12.00))
-        # reward /= 300.0  # normalize
+    def _reward(self) -> float:
+        state = self._environment_state
+        reward = float(state["speed_kmh"])  # * ( 1.0 - (np.abs( state["gap"]) / 12.00))
+        reward /= 300.0  # normalize
         return reward
 
-    def _get_action(self, state: EnvironmentState) -> np.array:
+    def _get_action(self, representation: np.array) -> np.array:
+        # Fills the n step return buffer on restart
+        if self._n_actions < self._n_step_buffer_states:
+            action = self._default_action
+        # Generates random actions to warm up training examples
         if self._start_steps > self._n_actions:
             action = self._random_action()
         else:
-            action, _ = self._sac.explore(state.representation)
-            print("Policy")
-            print(action)
+            action, _ = self._sac.explore(representation)
         self._n_actions += 1
         return action
 
@@ -94,7 +99,7 @@ class SACAgent(AssettoCorsaInterface):
         action = (action - 0.5) * 2
         return action
 
-    def _update_policy(self):
+    def _maybe_update_policy(self):
         if self._n_actions > self._start_steps:
             if self._n_actions % self._update_interval == 0:
                 batch = self._replay_buffer.sample(self._batch_size)
@@ -114,15 +119,13 @@ class SACAgent(AssettoCorsaInterface):
     def restart_condition(self, observation: Dict) -> bool:
         is_done = False
         is_done = is_done or self._is_outside_track_limits(observation)
-        is_done = is_done or self._is_progressing_too_slowly(observation)
-        is_done = is_done or self._is_agent_off_raceline(observation)
+        # is_done = is_done or self._is_progressing_too_slowly(observation)
+        # is_done = is_done or self._is_agent_off_raceline(observation)
+        self._is_done = is_done
         return is_done
 
     def _is_outside_track_limits(self, observation: Dict) -> bool:
-        is_done = False
-        if observation["state"]["number_of_tyres_out"] > 2:
-            is_done = True
-        return is_done
+        return observation["state"]["number_of_tyres_out"] > 2
 
     def _is_progressing_too_slowly(self, observation: Dict) -> bool:
         is_done = False
@@ -139,20 +142,24 @@ class SACAgent(AssettoCorsaInterface):
         return is_done
 
     def on_restart(self):
-        wandb.log({"policy/episode_reward": self._episode_reward}, self._n_episodes)
+        wandb.log({"reward/episode_reward": self._episode_reward}, self._n_episodes)
         self._reset_episode()
         self._n_episodes += 1
 
     def setup(self):
         self._setup_wandb()
+        self._reset_episode()
+        input_dim = self._environment_state.state_dimension
+        self.cfg["sac"]["policy"]["input_dim"] = input_dim
         self._sac = SoftActorCritic(self.cfg["sac"])
+        self._n_step_buffer_states = self.cfg["sac"]["n_steps"]
         self._replay_buffer = ReplayBuffer(self.cfg)
         self._start_steps = self.cfg["training"]["start_steps"]
         self._update_interval = self.cfg["training"]["update_interval"]
         self._batch_size = self.cfg["training"]["batch_size"]
+        self._default_action = np.array([0.0, -1.0, -1.0])
         self._n_actions = 0
         self._n_episodes = 0
-        self._reset_episode()
 
     def _setup_wandb(self):
         config = self.cfg["wandb"]
@@ -163,10 +170,10 @@ class SACAgent(AssettoCorsaInterface):
         )
 
     def _reset_episode(self):
-        self._episode_reward = 0
-        self._current_action = np.array([0.0, 0.0, 0.0])
         self._is_done = False
-        self._previous_state = None
+        self._episode_reward = 0
         self._previous_action = None
-        self._previous_is_done = False
+        self._previous_representation = None
         self._minimum_speed_patience = RESTART_PATIENCE
+        self._current_action = np.array([0.0, -1.0, -1.0])
+        self._environment_state = EnvironmentState(self.cfg["sac"])

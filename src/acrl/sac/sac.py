@@ -120,9 +120,8 @@ class SoftActorCritic:
         q1_loss_weights=None,
         q2_loss_weights=None,
     ):
-        actions, dones, next_states, rewards, states = batch.unpack()
-        current_q1, current_q2 = self._online_q(actions, states)
-        target_qs = self._target_qs(rewards, next_states, dones)
+        current_q1, current_q2 = self._online_q(batch.actions, batch.states)
+        target_qs = self._target_qs(batch.rewards, batch.next_states, batch.dones)
         q_loss = self._q_loss(
             current_q1,
             current_q2,

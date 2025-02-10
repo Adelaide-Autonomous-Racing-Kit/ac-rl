@@ -21,7 +21,6 @@ sac:
     target_update_coef: 0.005
     log_interval: 10
     policy:
-        input_dim: 14
         feature_dim: 256
         output_dim: 3
 
@@ -54,5 +53,5 @@ aci:
         check_every_n: 1000
         max_consecutive_failures: 3
     restart:
-        check_every_n: 25
+        check_every_n: 1
         max_consecutive_failures: 1
