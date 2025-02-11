@@ -6,6 +6,7 @@ import numpy as np
 import torch
 import wandb
 from torch.optim import Adam
+from loguru import logger
 
 
 class SoftActorCritic:
@@ -44,16 +45,13 @@ class SoftActorCritic:
         self.update_q_functions(batch)
         return stats
 
-    def update_policy_and_entropy(
-        self,
-        batch: SampleBatch,
-    ) -> Union[Dict, None]:
+    def update_policy_and_entropy(self, batch: SampleBatch):
         policy_loss, entropies = self._policy_loss(batch.states)
         self._step_policy_optimiser(policy_loss)
         entropy_loss = self._entropy_loss(entropies)
         self._step_alpha_optimiser(entropy_loss)
         self._alpha = self._log_alpha.detach().exp()
-        return self._maybe_log_policy_update(policy_loss, entropy_loss, entropies)
+        self._maybe_log_policy_update(policy_loss, entropy_loss, entropies)
 
     def _step_policy_optimiser(self, loss: torch.Tensor):
         self._step_optimiser(self._policy_optim, loss)
@@ -89,9 +87,9 @@ class SoftActorCritic:
         policy_loss: torch.Tensor,
         entropy_loss: torch.Tensor,
         entropies: torch.Tensor,
-    ) -> Union[Dict, None]:
+    ):
         if self._is_logging_step():
-            return self._log_policy_update(policy_loss, entropy_loss, entropies)
+            self._log_policy_update(policy_loss, entropy_loss, entropies)
 
     def _is_logging_step(self) -> bool:
         return self._n_learning_steps % self._log_interval == 0
@@ -112,7 +110,7 @@ class SoftActorCritic:
             "policy/entropy_mean": entropies,
         }
         wandb.log(to_log, self._n_learning_steps)
-        return to_log
+        self._log_to_console(to_log)
 
     def update_q_functions(
         self,
@@ -155,6 +153,13 @@ class SoftActorCritic:
             "Q/Q2_mean": q2_mean,
         }
         wandb.log(to_log, self._n_learning_steps)
+        self._log_to_console(to_log)
+
+    def _log_to_console(self, to_log: Dict):
+        message = f"{self._n_learning_steps}: "
+        for key in to_log:
+            message += f"{key} - {to_log[key]}, "
+        logger.info(message[:-2])
 
     def _target_qs(
         self,

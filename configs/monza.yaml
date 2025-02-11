@@ -19,10 +19,15 @@ sac:
     q_lr: 0.0003
     n_layers: 2
     target_update_coef: 0.005
-    log_interval: 10
+    log_interval: 100
     policy:
         feature_dim: 256
         output_dim: 3
+    look_ahead:
+        distance_m: 300
+        n_points: 12
+        raceline_path: 'data/racelines/monza.csv'
+
 
 aci:
     race.ini:
