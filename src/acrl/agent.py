@@ -2,22 +2,22 @@ from collections import namedtuple
 import time
 from typing import Dict
 
-import numpy as np
-import wandb
 from aci.interface import AssettoCorsaInterface
 from acrl.buffer.replay_buffer import ReplayBuffer
 from acrl.buffer.utils import BehaviouralSample
 from acrl.sac.sac import SoftActorCritic
 from acrl.utils import load
-from acrl.utils.state import EnvironmentState
 from acrl.utils.constants import (
-    CONTROL_MINS,
     CONTROL_MAXS,
+    CONTROL_MINS,
     CONTROL_RATES,
     MINIMUM_SPEED_KMH,
     RESTART_PATIENCE,
     SAMPLING_FREQUENCY,
 )
+from acrl.utils.state import EnvironmentState
+import numpy as np
+import wandb
 
 
 class SACAgent(AssettoCorsaInterface):

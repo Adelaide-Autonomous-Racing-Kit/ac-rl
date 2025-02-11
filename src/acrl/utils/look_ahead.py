@@ -1,8 +1,8 @@
 from typing import Dict, Tuple
 
+from acrl.utils.curvature import curvature_splines
 import numpy as np
 from scipy.spatial import KDTree as KDTreeBase
-from acrl.utils.curvature import curvature_splines
 
 
 class KDTree(KDTreeBase):

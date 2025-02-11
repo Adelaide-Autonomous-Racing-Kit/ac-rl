@@ -2,11 +2,11 @@ from typing import Dict, Tuple, Union
 
 from acrl.buffer.replay_buffer import SampleBatch
 from acrl.sac.modelling.policies import GaussianActionPolicy, TwinQNetwork
+from loguru import logger
 import numpy as np
 import torch
-import wandb
 from torch.optim import Adam
-from loguru import logger
+import wandb
 
 
 class SoftActorCritic:

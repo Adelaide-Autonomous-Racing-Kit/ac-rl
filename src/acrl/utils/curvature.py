@@ -1,6 +1,6 @@
 # Adapted from github gist https://gist.github.com/elyase/451cbc00152cb99feac6
-from scipy.interpolate import UnivariateSpline
 import numpy as np
+from scipy.interpolate import UnivariateSpline
 
 
 def curvature_splines(x: np.array, y: np.array, error: float = 0.1) -> np.array:

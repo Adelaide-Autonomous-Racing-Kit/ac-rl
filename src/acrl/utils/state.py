@@ -1,9 +1,8 @@
 from collections import deque
 from typing import Dict, Union
 
-import numpy as np
-
 from acrl.utils.look_ahead import LookAhead
+import numpy as np
 
 TOP_SPEED_MS = 80.0
 CURVATURE_NORMALISATION = 0.1
