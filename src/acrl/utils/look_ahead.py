@@ -47,7 +47,7 @@ class LookAhead:
         indices = self._get_segment_indices(start_distance, end_distance)
         if self._is_wrapping(end_distance):
             remaining = end_distance - self._track_length
-            indices = np.hstack([indices, self._get_indices(0, remaining)])
+            indices = np.hstack([indices, self._get_segment_indices(0, remaining)])
         return indices
 
     def _get_segment_indices(self, start: float, end: float) -> np.array:
