@@ -70,15 +70,17 @@ class LookAhead:
     def _setup(self, config: Dict):
         self._config = config
         self._look_ahead_distance = config["distance_m"]
-        self._raceline_path = config["raceline_path"]
+        self._track_path = config["track_path"]
         self._n_curvature_points = config["n_points"]
         self._setup_raceline()
         self._setup_curvature()
         self._setup_cum_distance()
 
-    def _setup_raceline(self):
-        raceline = np.genfromtxt(self._raceline_path, delimiter=",")[1:]
-        self._raceline = KDTree(raceline)
+    def _setup_track(self):
+        track = np.load(self._track_path, allow_pickle=True).item()
+        self._raceline = KDTree(track["raceline"])
+        self._left_track = track["left_track"]
+        self._right_track = track["right_track"]
 
     def _setup_cum_distance(self):
         x_diff = np.diff(self._raceline[:, 0])

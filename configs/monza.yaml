@@ -11,6 +11,7 @@ training:
     start_steps: 2_000
     log_interval: 10
     checkpoint_freq: 200_000
+    checkpoint_path: data/checkpoints
 sac:
     gamma: 0.992
     n_steps: 3
@@ -26,13 +27,13 @@ sac:
     look_ahead:
         distance_m: 300
         n_points: 12
-        raceline_path: 'data/racelines/monza.csv'
+        track_path: data/tracks/monza.npy
 
 
 aci:
     race.ini:
         RACE:
-            TRACK: "monza"
+            TRACK: monza
             CONFIG_TRACK: ""
         SESSION_0:
             SPAWN_SET: HOTLAP_START
@@ -50,7 +51,7 @@ aci:
         is_docker: False
         is_proton: True
         images:
-            image_format: "BGR0"
+            image_format: BGR0
             wait_for_new_frames: False
         state:
             use_dicts: True

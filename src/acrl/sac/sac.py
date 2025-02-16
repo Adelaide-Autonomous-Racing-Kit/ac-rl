@@ -1,4 +1,5 @@
-from typing import Dict, Tuple, Union
+from pathlib import Path
+from typing import Dict, Tuple
 
 from acrl.buffer.replay_buffer import SampleBatch
 from acrl.sac.modelling.policies import GaussianActionPolicy, TwinQNetwork
@@ -16,7 +17,7 @@ class SoftActorCritic:
     def explore(self, state: np.array) -> Tuple[np.array, torch.Tensor]:
         state = self._to_tensor(state)
         with torch.no_grad():
-            action, entropies, _ = self._policy(state)
+            action, entropies, _ = self.policy(state)
         action = action.cpu().numpy()[0]
         return action, entropies
 
@@ -27,12 +28,12 @@ class SoftActorCritic:
     def exploit(self, state: np.array) -> Tuple[np.array, torch.Tensor]:
         state = self._to_tensor(state)
         with torch.no_grad():
-            _, entropies, action = self._policy(state)
+            _, entropies, action = self.policy(state)
         action = action.cpu().numpy()[0]
         return action, entropies
 
     def update_target_networks(self):
-        for t, s in zip(self._target_q.parameters(), self._online_q.parameters()):
+        for t, s in zip(self.target_q.parameters(), self.online_q.parameters()):
             self._soft_update(t, s)
 
     def _soft_update(self, target: torch.Tensor, source: torch.Tensor):
@@ -50,17 +51,17 @@ class SoftActorCritic:
         self._step_policy_optimiser(policy_loss)
         entropy_loss = self._entropy_loss(entropies)
         self._step_alpha_optimiser(entropy_loss)
-        self._alpha = self._log_alpha.detach().exp()
+        self._alpha = self.log_alpha.detach().exp()
         self._maybe_log_policy_update(policy_loss, entropy_loss, entropies)
 
     def _step_policy_optimiser(self, loss: torch.Tensor):
-        self._step_optimiser(self._policy_optim, loss)
+        self._step_optimiser(self.policy_optim, loss)
 
     def _step_alpha_optimiser(self, loss: torch.Tensor):
-        self._step_optimiser(self._alpha_optim, loss)
+        self._step_optimiser(self.alpha_optim, loss)
 
     def _step_q_optimiser(self, loss: torch.Tensor):
-        self._step_optimiser(self._q_optim, loss)
+        self._step_optimiser(self.q_optim, loss)
 
     def _step_optimiser(self, optimiser: torch.optim.Optimizer, loss: torch.Tensor):
         optimiser.zero_grad()
@@ -69,9 +70,9 @@ class SoftActorCritic:
 
     def _policy_loss(self, states: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         # Resample actions to calculate expectations of Q.
-        sampled_actions, entropies, _ = self._policy(states)
+        sampled_actions, entropies, _ = self.policy(states)
         # Expectations of Q with clipped double Q technique.
-        qs1, qs2 = self._online_q(sampled_actions, states)
+        qs1, qs2 = self.online_q(sampled_actions, states)
         qs = torch.min(qs1, qs2)
         # Policy objective is maximization of (Q + alpha * entropy).
         policy_loss = torch.mean((-qs - self._alpha * entropies))
@@ -79,7 +80,7 @@ class SoftActorCritic:
 
     def _entropy_loss(self, entropies: torch.Tensor) -> torch.Tensor:
         # Increase alpha when entropy is less than target entropy, vice versa.
-        entropy_loss = -torch.mean(self._log_alpha * (self._target_entropy - entropies))
+        entropy_loss = -torch.mean(self.log_alpha * (self._target_entropy - entropies))
         return entropy_loss
 
     def _maybe_log_policy_update(
@@ -118,7 +119,7 @@ class SoftActorCritic:
         q1_loss_weights=None,
         q2_loss_weights=None,
     ):
-        current_q1, current_q2 = self._online_q(batch.actions, batch.states)
+        current_q1, current_q2 = self.online_q(batch.actions, batch.states)
         target_qs = self._target_qs(batch.rewards, batch.next_states, batch.dones)
         q_loss = self._q_loss(
             current_q1,
@@ -168,8 +169,8 @@ class SoftActorCritic:
         dones: torch.Tensor,
     ) -> torch.Tensor:
         with torch.no_grad():
-            next_actions, next_entropies, _ = self._policy(next_states)
-            next_qs1, next_qs2 = self._target_q(next_actions, next_states)
+            next_actions, next_entropies, _ = self.policy(next_states)
+            next_qs1, next_qs2 = self.target_q(next_actions, next_states)
             next_qs = torch.min(next_qs1, next_qs2) + self._alpha * next_entropies
         target_qs = rewards + (1.0 - dones) * self._discount * next_qs
         return target_qs
@@ -215,17 +216,17 @@ class SoftActorCritic:
         self._n_learning_steps = 0
 
     def _setup_policies(self):
-        self._policy = GaussianActionPolicy(self._model_config)
-        self._policy.to(self._device)
-        self._online_q = TwinQNetwork(self._model_config)
-        self._online_q.to(self._device)
-        self._target_q = TwinQNetwork(self._model_config)
-        self._target_q.load_state_dict(self._online_q.state_dict())
-        self._target_q.eval()
-        self._target_q.to(self._device)
-        self._policy_optim = Adam(self._policy.parameters(), lr=self._policy_lr)
-        self._q_optim = Adam(self._online_q.parameters(), lr=self._q_lr)
+        self.policy = GaussianActionPolicy(self._model_config)
+        self.policy.to(self._device)
+        self.online_q = TwinQNetwork(self._model_config)
+        self.online_q.to(self._device)
+        self.target_q = TwinQNetwork(self._model_config)
+        self.target_q.load_state_dict(self.online_q.state_dict())
+        self.target_q.eval()
+        self.target_q.to(self._device)
+        self.policy_optim = Adam(self.policy.parameters(), lr=self._policy_lr)
+        self.q_optim = Adam(self.online_q.parameters(), lr=self._q_lr)
         self._target_entropy = -float(self._model_config["output_dim"])
-        self._log_alpha = torch.zeros(1, device=self._device, requires_grad=True)
-        self._alpha = self._log_alpha.detach().exp()
-        self._alpha_optim = Adam([self._log_alpha], lr=self._entropy_lr)
+        self.log_alpha = torch.zeros(1, device=self._device, requires_grad=True)
+        self._alpha = self.log_alpha.detach().exp()
+        self.alpha_optim = Adam([self.log_alpha], lr=self._entropy_lr)

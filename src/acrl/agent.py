@@ -1,7 +1,9 @@
-from collections import namedtuple
 import time
+from pathlib import Path
 from typing import Dict
 
+import numpy as np
+import wandb
 from aci.interface import AssettoCorsaInterface
 from acrl.buffer.replay_buffer import ReplayBuffer
 from acrl.buffer.utils import BehaviouralSample
@@ -15,9 +17,8 @@ from acrl.utils.constants import (
     RESTART_PATIENCE,
     SAMPLING_FREQUENCY,
 )
+from acrl.utils.checkpointer import Checkpointer
 from acrl.utils.state import EnvironmentState
-import numpy as np
-import wandb
 
 
 class SACAgent(AssettoCorsaInterface):
@@ -130,20 +131,22 @@ class SACAgent(AssettoCorsaInterface):
         self._n_episodes += 1
 
     def setup(self):
+        self._unpack_config()
         self._setup_wandb()
-        self._environment_state = EnvironmentState(self.cfg["sac"])
-        input_dim = self._environment_state.state_dimension
-        self.cfg["sac"]["policy"]["input_dim"] = input_dim
-        self._sac = SoftActorCritic(self.cfg["sac"])
+        self._setup_environment()
+        self._setup_SAC()
+        self._setup_replay_buffer()
+        self._setup_checkpointer()
+        self._setup_defaults()
+
+    def _unpack_config(self):
         self._n_step_buffer_states = self.cfg["sac"]["n_steps"]
-        self._replay_buffer = ReplayBuffer(self.cfg)
         self._start_steps = self.cfg["training"]["start_steps"]
         self._update_interval = self.cfg["training"]["update_interval"]
         self._batch_size = self.cfg["training"]["batch_size"]
-        self._default_action = np.array([0.0, -1.0, -1.0])
-        self._n_actions = 0
-        self._n_episodes = 0
-        self._reset_episode()
+        run_name = self.cfg["wandb"]["run_name"]
+        checkpoint_path = self.cfg["training"]["checkpoint_path"]
+        self._checkpoint_path = Path(f"{checkpoint_path}/{run_name}")
 
     def _setup_wandb(self):
         config = self.cfg["wandb"]
@@ -152,6 +155,27 @@ class SACAgent(AssettoCorsaInterface):
             project=config["project_name"],
             name=config["run_name"],
         )
+
+    def _setup_environment(self):
+        self._environment_state = EnvironmentState(self.cfg["sac"])
+        input_dim = self._environment_state.state_dimension
+        self.cfg["sac"]["policy"]["input_dim"] = input_dim
+
+    def _setup_SAC(self):
+        self._sac = SoftActorCritic(self.cfg["sac"])
+
+    def _setup_memory_buffer(self):
+        self._replay_buffer = ReplayBuffer(self.cfg)
+
+    def _setup_checkpointer(self):
+        path = self._checkpoint_path
+        self._checkpointer = Checkpointer(path, self._sac, self._replay_buffer)
+
+    def _setup_defaults(self):
+        self._default_action = np.array([0.0, -1.0, -1.0])
+        self._n_actions = 0
+        self._n_episodes = 0
+        self._reset_episode()
 
     def _reset_episode(self):
         self._is_done = False
