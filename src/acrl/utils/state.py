@@ -46,16 +46,18 @@ class EnvironmentState:
         return np.hstack([expanded_state, past_state])
 
     def _add_calculated_values(self, observation: Dict):
-        curvature_ahead, distance_to_raceline = self._look_ahead(observation)
+        curvature, distance_to_raceline, limits_LiDAR = self._look_ahead(observation)
         observation["gap"] = distance_to_raceline
-        observation["curvature"] = curvature_ahead
+        observation["curvature"] = curvature
+        observation["limits_LiDAR"] = limits_LiDAR
 
     def _state_representation_from_observation(self, observation: Dict) -> np.array:
         state = [observation[key] for key in STATE_REPRESENTATION]
-        return np.array(state, dtype=np.float32) / self._normalisation
+        state = np.array(state, dtype=np.float32) / self._normalisation
+        return np.hstack([state, observation["limits_LiDAR"]])
 
     def _historical_state(self) -> np.array:
-        return np.hstack([state for state in self._history])
+        return np.hstack([state for state in reversed(self._history)])
 
     def _update_history(self, latest_state: np.array):
         if self._is_full:
@@ -85,7 +87,7 @@ class EnvironmentState:
 
     def _setup(self, config: Dict):
         self._unpack_config(config)
-        self._setup_look_ahead_curve()
+        self._setup_look_ahead()
         self._setup_state_dimension()
         self._setup_normalising_factors()
         self._reset_history()
@@ -94,13 +96,15 @@ class EnvironmentState:
         self._config = config
         self._n_steps = config["n_steps"]
 
-    def _setup_look_ahead_curve(self):
+    def _setup_look_ahead(self):
         self._look_ahead = LookAhead(self._config["look_ahead"])
-        self._n_curvature_points = self._config["look_ahead"]["n_points"]
+        self._n_curvature_points = self._config["look_ahead"]["curvature"]["n_points"]
+        self._n_LiDAR_points = self._config["look_ahead"]["limits_LiDAR"]["n_rays"]
+        self._LiDAR_distance = self._config["look_ahead"]["limits_LiDAR"]["distance_m"]
 
     def _setup_state_dimension(self):
-        single_representation = len(STATE_REPRESENTATION)
-        state_dimension = single_representation * (self._n_steps + 1)
+        self._single_representation = len(STATE_REPRESENTATION) + self._n_LiDAR_points
+        state_dimension = self._single_representation * (self._n_steps + 1)
         self._additional_state_dimension = 1 + self._n_curvature_points
         self.state_dimension = state_dimension + self._additional_state_dimension
 
@@ -114,4 +118,4 @@ class EnvironmentState:
 
     def _fill_history(self):
         for _ in range(self._n_steps):
-            self._update_history(np.zeros(len(STATE_REPRESENTATION)))
+            self._update_history(np.zeros(self._single_representation))

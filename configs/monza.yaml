@@ -25,9 +25,13 @@ sac:
         feature_dim: 256
         output_dim: 3
     look_ahead:
-        distance_m: 300
-        n_points: 12
         track_path: data/tracks/monza.npy
+        curvature:
+            distance_m: 300
+            n_points: 12
+        limits_LiDAR:
+            distance_m: 200
+            n_rays: 11
 
 
 aci:

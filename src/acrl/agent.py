@@ -17,7 +17,7 @@ from acrl.utils.constants import (
     RESTART_PATIENCE,
     SAMPLING_FREQUENCY,
 )
-from acrl.utils.checkpointer import Checkpointer
+from acrl.sac.checkpointer import Checkpointer
 from acrl.utils.state import EnvironmentState
 
 
@@ -95,6 +95,7 @@ class SACAgent(AssettoCorsaInterface):
             self._sac.update_target_networks()
 
     def _rate_limit(self, start_time: float):
+        print(f"Executed in {time.time() - start_time}")
         while (time.time() - start_time) < (1 / SAMPLING_FREQUENCY):
             # Rate limit to sampling frequency
             continue
@@ -164,7 +165,7 @@ class SACAgent(AssettoCorsaInterface):
     def _setup_SAC(self):
         self._sac = SoftActorCritic(self.cfg["sac"])
 
-    def _setup_memory_buffer(self):
+    def _setup_replay_buffer(self):
         self._replay_buffer = ReplayBuffer(self.cfg)
 
     def _setup_checkpointer(self):
