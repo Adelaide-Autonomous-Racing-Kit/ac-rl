@@ -17,7 +17,7 @@ from acrl.utils.constants import (
     RESTART_PATIENCE,
     SAMPLING_FREQUENCY,
 )
-from acrl.sac.checkpointer import Checkpointer
+from acrl.utils.checkpointer import Checkpointer
 from acrl.utils.state import EnvironmentState
 
 
@@ -41,7 +41,7 @@ class SACAgent(AssettoCorsaInterface):
         self._previous_action = action
         self._previous_representation = representation
 
-        self._rate_limit(start_time)
+        # self._rate_limit(start_time)
 
     def _update_control(self, action: np.array) -> np.array:
         deltas = action * CONTROL_RATES
@@ -95,7 +95,6 @@ class SACAgent(AssettoCorsaInterface):
             self._sac.update_target_networks()
 
     def _rate_limit(self, start_time: float):
-        print(f"Executed in {time.time() - start_time}")
         while (time.time() - start_time) < (1 / SAMPLING_FREQUENCY):
             # Rate limit to sampling frequency
             continue
@@ -128,8 +127,14 @@ class SACAgent(AssettoCorsaInterface):
 
     def on_restart(self):
         wandb.log({"policy/reward": self._episode_reward})
+        self._maybe_checkpoint_training()
         self._reset_episode()
-        self._n_episodes += 1
+
+    def _maybe_checkpoint_training(self):
+        actions_since_checkpoint = self._n_actions - self._last_checkpoint
+        if actions_since_checkpoint >= self._checkpoint_interval:
+            self._checkpointer.checkpoint(self._n_actions)
+            self._last_checkpoint = self._n_actions
 
     def setup(self):
         self._unpack_config()
@@ -137,8 +142,8 @@ class SACAgent(AssettoCorsaInterface):
         self._setup_environment()
         self._setup_SAC()
         self._setup_replay_buffer()
-        self._setup_checkpointer()
         self._setup_defaults()
+        self._setup_checkpointer()
 
     def _unpack_config(self):
         self._n_step_buffer_states = self.cfg["sac"]["n_steps"]
@@ -146,8 +151,9 @@ class SACAgent(AssettoCorsaInterface):
         self._update_interval = self.cfg["training"]["update_interval"]
         self._batch_size = self.cfg["training"]["batch_size"]
         run_name = self.cfg["wandb"]["run_name"]
-        checkpoint_path = self.cfg["training"]["checkpoint_path"]
+        checkpoint_path = self.cfg["training"]["checkpoint"]["path"]
         self._checkpoint_path = Path(f"{checkpoint_path}/{run_name}")
+        self._checkpoint_interval = self.cfg["training"]["checkpoint"]["interval"]
 
     def _setup_wandb(self):
         config = self.cfg["wandb"]
@@ -169,13 +175,17 @@ class SACAgent(AssettoCorsaInterface):
         self._replay_buffer = ReplayBuffer(self.cfg)
 
     def _setup_checkpointer(self):
+        self._last_checkpoint = 0
         path = self._checkpoint_path
-        self._checkpointer = Checkpointer(path, self._sac, self._replay_buffer)
+        config = self.cfg["training"]["checkpoint"]
+        self._checkpointer = Checkpointer(config, path, self._sac, self._replay_buffer)
+        if config["resume"]:
+            self._n_actions = self._checkpointer.load(config["name"])
+            self._last_checkpoint = self._n_actions
 
     def _setup_defaults(self):
         self._default_action = np.array([0.0, -1.0, -1.0])
         self._n_actions = 0
-        self._n_episodes = 0
         self._reset_episode()
 
     def _reset_episode(self):

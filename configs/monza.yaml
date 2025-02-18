@@ -1,7 +1,7 @@
 wandb:
     entity: aiml-l2r
     project_name: ac-sac
-    run_name: ac-sac-v0.1
+    run_name: monza-acg-v0.1
 
 training:
     n_train_steps: 10_000_000
@@ -10,8 +10,12 @@ training:
     update_interval: 1
     start_steps: 2_000
     log_interval: 10
-    checkpoint_freq: 200_000
-    checkpoint_path: data/checkpoints
+    checkpoint:
+        interval: 2_500
+        path: data/checkpoints
+        n_to_keep: 5
+        resume: False
+        name: '0'
 sac:
     gamma: 0.992
     n_steps: 3
@@ -39,8 +43,6 @@ aci:
         RACE:
             TRACK: monza
             CONFIG_TRACK: ""
-        SESSION_0:
-            SPAWN_SET: HOTLAP_START
     video.ini:
         VIDEO:
             WIDTH: 1280

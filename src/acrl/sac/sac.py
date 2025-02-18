@@ -192,6 +192,29 @@ class SoftActorCritic:
             q2_loss = torch.sum((current_q2 - target_qs).pow(2) * q2_loss_weights)
         return q1_loss + q2_loss
 
+    def serialise(self) -> Dict:
+        checkpoint = {
+            "n_steps": self._n_learning_steps,
+            "policy": self.policy.state_dict(),
+            "policy_optim": self.policy_optim.state_dict(),
+            "online_q": self.online_q.state_dict(),
+            "target_q": self.target_q.state_dict(),
+            "q_optim": self.q_optim.state_dict(),
+            "log_alpha": self.log_alpha,
+            "alpha_optim": self.alpha_optim.state_dict(),
+        }
+        return checkpoint
+
+    def restore(self, checkpoint: Dict):
+        self._n_learning_steps = checkpoint["n_steps"]
+        self.policy.load_state_dict(checkpoint["policy"])
+        self.policy_optim.load_state_dict(checkpoint["policy_optim"])
+        self.online_q.load_state_dict(checkpoint["online_q"])
+        self.q_optim.load_state_dict(checkpoint["q_optim"])
+        self.target_q.load_state_dict(checkpoint["target_q"])
+        self.log_alpha = checkpoint["log_alpha"]
+        self.alpha_optim.load_state_dict(checkpoint["alpha_optim"])
+
     def _setup(self, config: Dict):
         self._unpack_config(config)
         self._setup_accelerator()

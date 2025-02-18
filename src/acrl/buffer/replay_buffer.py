@@ -124,6 +124,25 @@ class ReplayBuffer:
     def n_buffered(self) -> int:
         return min(self._n_buffered, self._max_buffered_samples)
 
+    def serialise_buffer(self) -> Dict:
+        replay_buffer_state = {
+            "n_buffered": self._n_buffered,
+            "states": self._states[: self._buffer_index],
+            "actions": self._actions[: self._buffer_index],
+            "rewards": self._rewards[: self._buffer_index],
+            "next_states": self._next_states[: self._buffer_index],
+            "dones": self._dones[: self._buffer_index],
+        }
+        return replay_buffer_state
+
+    def restore(self, state: Dict):
+        self._n_buffered = state["n_buffered"]
+        self._states[: self._buffer_index] = state["states"]
+        self._actions[: self._buffer_index] = state["actions"]
+        self._rewards[: self._buffer_index] = state["rewards"]
+        self._next_states[: self._buffer_index] = state["next_states"]
+        self._dones[: self._buffer_index] = state["dones"]
+
     def _setup(self, config: Dict):
         self._unpack_config(config)
         self._setup_accelerator()
