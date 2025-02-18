@@ -41,7 +41,7 @@ class SACAgent(AssettoCorsaInterface):
         self._previous_action = action
         self._previous_representation = representation
 
-        # self._rate_limit(start_time)
+        self._rate_limit(start_time)
 
     def _update_control(self, action: np.array) -> np.array:
         deltas = action * CONTROL_RATES
