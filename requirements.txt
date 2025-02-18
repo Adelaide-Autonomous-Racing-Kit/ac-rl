@@ -1,3 +1,7 @@
 ruamel.yaml
+torch>=1.8
+torchvision>=0.9
+wandb
+loguru
 git+https://github.com/Adelaide-Autonomous-Racing-Challenge/ac-state.git
 git+https://github.com/Adelaide-Autonomous-Racing-Challenge/ac-interface.git
