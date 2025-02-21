@@ -80,9 +80,8 @@ class LookAhead:
         return indices
 
     def _get_segment_indices(self, start: float, end: float) -> np.array:
-        return np.nonzero((self._cum_distance >= start) & (self._cum_distance <= end))[
-            0
-        ]
+        in_window = (self._cum_distance >= start) & (self._cum_distance <= end)
+        return np.nonzero(in_window)[0]
 
     def _is_wrapping(self, end_distance: float) -> bool:
         return self._track_length < end_distance
