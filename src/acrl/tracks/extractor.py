@@ -5,8 +5,8 @@ import struct
 from typing import Dict, Generator, Tuple
 
 from loguru import logger
-import numpy as np
 import matplotlib.pyplot as plt
+import numpy as np
 
 INVALID_TRACKS = {
     "silverstone-international",
