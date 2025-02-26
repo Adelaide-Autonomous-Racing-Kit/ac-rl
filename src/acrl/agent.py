@@ -77,7 +77,8 @@ class SACAgent(AssettoCorsaInterface):
 
     def _reward(self) -> float:
         state = self._environment_state
-        reward = float(state["speed_kmh"]) * (1.0 - (np.abs(state["gap"]) / 12.00))
+        speed = np.clip(state["speed_kmh"], a_min=0.0, a_max=300.0)
+        reward = speed * (1.0 - (np.abs(state["gap"]) / 12.00))
         reward /= 300.0  # normalize
         return reward
 
@@ -131,6 +132,7 @@ class SACAgent(AssettoCorsaInterface):
         is_done = False
         is_done = is_done or self._is_outside_track_limits(observation)
         is_done = is_done or self._is_progressing_too_slowly(observation)
+        is_done = is_done or self._is_too_far_away_from_raceline()
         is_done = is_done or self._is_episode_too_long()
         self._is_done = is_done
         return is_done
@@ -147,6 +149,9 @@ class SACAgent(AssettoCorsaInterface):
         if self._minimum_speed_patience < 1:
             is_done = True
         return is_done
+
+    def _is_too_far_away_from_raceline(self):
+        return abs(self._environment_state["gap"]) > 12.0
 
     def _is_episode_too_long(self) -> bool:
         return self._episode_length > MAX_EPISODE_LENGTH
