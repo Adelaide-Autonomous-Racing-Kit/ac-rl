@@ -9,6 +9,7 @@ from acrl.buffer.utils import BehaviouralSample
 from acrl.sac.sac import SoftActorCritic
 from acrl.utils import load
 from acrl.utils.checkpointer import Checkpointer
+from acrl.utils.warmup import SpeedRewardWarmUp
 from acrl.utils.constants import (
     CONTROL_MAXS,
     CONTROL_MINS,
@@ -78,9 +79,9 @@ class SACAgent(AssettoCorsaInterface):
 
     def _reward(self) -> float:
         state = self._environment_state
-        speed = np.clip(state["speed_kmh"], a_min=0.0, a_max=300.0)
+        speed = self._reward_warmup(state["speed_kmh"])
         reward = speed * (1.0 - (np.abs(state["gap"]) / 12.00))
-        reward /= 300.0  # normalize
+        reward /= self._maximum_speed
         return reward
 
     def _get_training_action(self, representation: np.array) -> np.array:
@@ -166,6 +167,7 @@ class SACAgent(AssettoCorsaInterface):
     def on_restart(self):
         wandb.log({"policy/reward": self._episode_reward})
         self._maybe_checkpoint_training()
+        self._update_reward_warmup()
         self._update_training_flag()
         self._reset_episode()
 
@@ -177,6 +179,10 @@ class SACAgent(AssettoCorsaInterface):
     def _checkpoint(self):
         self._checkpointer.checkpoint(self._n_actions)
         self._last_checkpoint = self._n_actions
+
+    def _update_reward_warmup(self):
+        if self._is_truncated:
+            self._reward_warmup.increment_truncated_episodes()
 
     def _update_training_flag(self):
         # TODO: Implement evaluation
@@ -190,6 +196,7 @@ class SACAgent(AssettoCorsaInterface):
         self._setup_replay_buffer()
         self._setup_defaults()
         self._setup_checkpointer()
+        self._setup_reward_warmup()
 
     def _unpack_config(self):
         self._n_step_buffer_states = self.cfg["sac"]["n_steps"]
@@ -245,3 +252,8 @@ class SACAgent(AssettoCorsaInterface):
         self._minimum_speed_patience = RESTART_PATIENCE
         self._current_action = np.array([0.0, -1.0, -1.0])
         self._environment_state.reset()
+
+    def _setup_reward_warmup(self):
+        config = self.cfg["training"]["speed_reward_warmup"]
+        self._reward_warmup = SpeedRewardWarmUp(config)
+        self._maximum_speed = config["max_speed_reward"]["final"]

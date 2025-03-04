@@ -6,9 +6,9 @@ wandb:
 training:
     n_train_steps: 10_000_000
     batch_size: 128
-    buffer_size: 10_000_000
+    buffer_size: 200_000
     update_interval: 1
-    start_steps: 2_000
+    start_steps: 20_000
     log_interval: 10
     checkpoint:
         interval: 200_000
@@ -16,6 +16,12 @@ training:
         n_to_keep: 5
         resume: False
         name: '0'
+    speed_reward_warmup:
+        max_speed_reward:
+            initial: 40.0
+            final: 300.0
+        n_truncated_eps: 14
+        n_warmup_eps: 130
 
 sac:
     gamma: 0.992
