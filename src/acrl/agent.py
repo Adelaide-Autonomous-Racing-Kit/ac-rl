@@ -71,6 +71,7 @@ class SACAgent(AssettoCorsaInterface):
                 reward=reward,
                 next_state=representation,
                 state=self._previous_representation,
+                truncated=self._is_truncated,
             )
             self._replay_buffer.append(sample)
         self._episode_reward += reward
@@ -130,13 +131,18 @@ class SACAgent(AssettoCorsaInterface):
         return False
 
     def restart_condition(self, observation: Dict) -> bool:
+        # Negative Episode Termination Conditions
         is_done = False
         is_done = is_done or self._is_outside_track_limits(observation)
         is_done = is_done or self._is_progressing_too_slowly(observation)
         is_done = is_done or self._is_too_far_away_from_raceline()
-        is_done = is_done or self._is_episode_too_long()
         self._is_done = is_done
-        return is_done
+        # Positive Episode Termination Conditions
+        is_truncated = False
+        is_truncated = is_truncated or self._is_episode_too_long()
+        self._is_truncated = is_truncated
+        # Restart flag
+        return is_done or is_truncated
 
     def _is_outside_track_limits(self, observation: Dict) -> bool:
         return observation["state"]["number_of_tyres_out"] > 2
@@ -231,6 +237,7 @@ class SACAgent(AssettoCorsaInterface):
 
     def _reset_episode(self):
         self._is_done = False
+        self._is_truncated = False
         self._episode_reward = 0
         self._episode_length = 0
         self._previous_action = None
