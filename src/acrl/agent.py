@@ -183,6 +183,7 @@ class SACAgent(AssettoCorsaInterface):
     def _update_reward_warmup(self):
         if self._is_truncated:
             self._reward_warmup.increment_truncated_episodes()
+        wandb.log({"policy/max_speed_reward": self._reward_warmup.reward_limit})
 
     def _update_training_flag(self):
         # TODO: Implement evaluation

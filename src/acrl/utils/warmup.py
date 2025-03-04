@@ -8,10 +8,10 @@ class SpeedRewardWarmUp:
         self.__setup(config)
 
     def __call__(self, speed: float) -> float:
-        return np.clip(speed, a_min=0.0, a_max=self._reward_limit)
+        return np.clip(speed, a_min=0.0, a_max=self.reward_limit)
 
     @property
-    def _reward_limit(self) -> float:
+    def reward_limit(self) -> float:
         if self._n_truncated_episodes <= self._n_eps_before_warmup:
             return self._initial_reward_limit
         elif self._n_episodes_into_warmup <= self._n_warmup_eps:
