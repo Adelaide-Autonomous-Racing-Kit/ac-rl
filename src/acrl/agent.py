@@ -9,7 +9,6 @@ from acrl.buffer.utils import BehaviouralSample
 from acrl.sac.sac import SoftActorCritic
 from acrl.utils import load
 from acrl.utils.checkpointer import Checkpointer
-from acrl.utils.warmup import SpeedRewardWarmUp
 from acrl.utils.constants import (
     CONTROL_MAXS,
     CONTROL_MINS,
@@ -20,6 +19,7 @@ from acrl.utils.constants import (
     SAMPLING_FREQUENCY,
 )
 from acrl.utils.state import EnvironmentState
+from acrl.utils.warmup import SpeedRewardWarmUp
 import numpy as np
 import torch
 import wandb
