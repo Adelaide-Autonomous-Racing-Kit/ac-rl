@@ -123,6 +123,7 @@ class SACAgent(AssettoCorsaInterface):
             continue
 
     def teardown(self):
+        self._checkpoint()
         self._wandb_run.finish()
 
     def termination_condition(self, observation: Dict) -> bool:
@@ -165,8 +166,11 @@ class SACAgent(AssettoCorsaInterface):
     def _maybe_checkpoint_training(self):
         actions_since_checkpoint = self._n_actions - self._last_checkpoint
         if actions_since_checkpoint >= self._checkpoint_interval:
-            self._checkpointer.checkpoint(self._n_actions)
-            self._last_checkpoint = self._n_actions
+            self._checkpoint()
+
+    def _checkpoint(self):
+        self._checkpointer.checkpoint(self._n_actions)
+        self._last_checkpoint = self._n_actions
 
     def _update_training_flag(self):
         # TODO: Implement evaluation
