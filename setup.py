@@ -7,12 +7,7 @@ setup(
     package_dir={"": "src"},
     install_requires=[
         "scipy",
-        "osqp",
-        "pyconcorde",
-        "segmentation-models-pytorch",
         "ruamel.yaml",
-        "matplotlib",
-        "simple-pid",
         "PyQt6",
     ],
 )

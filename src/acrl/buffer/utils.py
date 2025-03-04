@@ -21,6 +21,7 @@ class BehaviouralSample:
     reward: float
     next_state: np.array
     state: np.array
+    truncated: bool
 
     def unpack(self) -> Tuple[np.array, float, np.array]:
         return self.action, self.reward, self.state
@@ -30,4 +31,4 @@ class BehaviouralSample:
 
     @property
     def is_episode_finished(self) -> bool:
-        return self.done
+        return self.done or self.truncated

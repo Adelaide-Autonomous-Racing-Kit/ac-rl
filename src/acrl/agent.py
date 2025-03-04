@@ -1,4 +1,5 @@
 from pathlib import Path
+import random
 import time
 from typing import Dict
 
@@ -19,7 +20,12 @@ from acrl.utils.constants import (
 )
 from acrl.utils.state import EnvironmentState
 import numpy as np
+import torch
 import wandb
+
+torch.manual_seed(1337)
+np.random.seed(1337)
+random.seed(1337)
 
 
 class SACAgent(AssettoCorsaInterface):
@@ -65,13 +71,15 @@ class SACAgent(AssettoCorsaInterface):
                 reward=reward,
                 next_state=representation,
                 state=self._previous_representation,
+                truncated=self._is_truncated,
             )
             self._replay_buffer.append(sample)
         self._episode_reward += reward
 
     def _reward(self) -> float:
         state = self._environment_state
-        reward = float(state["speed_kmh"]) * (1.0 - (np.abs(state["gap"]) / 12.00))
+        speed = np.clip(state["speed_kmh"], a_min=0.0, a_max=300.0)
+        reward = speed * (1.0 - (np.abs(state["gap"]) / 12.00))
         reward /= 300.0  # normalize
         return reward
 
@@ -116,18 +124,25 @@ class SACAgent(AssettoCorsaInterface):
             continue
 
     def teardown(self):
+        self._checkpoint()
         self._wandb_run.finish()
 
     def termination_condition(self, observation: Dict) -> bool:
         return False
 
     def restart_condition(self, observation: Dict) -> bool:
+        # Negative Episode Termination Conditions
         is_done = False
         is_done = is_done or self._is_outside_track_limits(observation)
         is_done = is_done or self._is_progressing_too_slowly(observation)
-        is_done = is_done or self._is_episode_too_long()
+        is_done = is_done or self._is_too_far_away_from_raceline()
         self._is_done = is_done
-        return is_done
+        # Positive Episode Termination Conditions
+        is_truncated = False
+        is_truncated = is_truncated or self._is_episode_too_long()
+        self._is_truncated = is_truncated
+        # Restart flag
+        return is_done or is_truncated
 
     def _is_outside_track_limits(self, observation: Dict) -> bool:
         return observation["state"]["number_of_tyres_out"] > 2
@@ -142,6 +157,9 @@ class SACAgent(AssettoCorsaInterface):
             is_done = True
         return is_done
 
+    def _is_too_far_away_from_raceline(self):
+        return abs(self._environment_state["gap"]) > 12.0
+
     def _is_episode_too_long(self) -> bool:
         return self._episode_length > MAX_EPISODE_LENGTH
 
@@ -154,8 +172,11 @@ class SACAgent(AssettoCorsaInterface):
     def _maybe_checkpoint_training(self):
         actions_since_checkpoint = self._n_actions - self._last_checkpoint
         if actions_since_checkpoint >= self._checkpoint_interval:
-            self._checkpointer.checkpoint(self._n_actions)
-            self._last_checkpoint = self._n_actions
+            self._checkpoint()
+
+    def _checkpoint(self):
+        self._checkpointer.checkpoint(self._n_actions)
+        self._last_checkpoint = self._n_actions
 
     def _update_training_flag(self):
         # TODO: Implement evaluation
@@ -216,6 +237,7 @@ class SACAgent(AssettoCorsaInterface):
 
     def _reset_episode(self):
         self._is_done = False
+        self._is_truncated = False
         self._episode_reward = 0
         self._episode_length = 0
         self._previous_action = None

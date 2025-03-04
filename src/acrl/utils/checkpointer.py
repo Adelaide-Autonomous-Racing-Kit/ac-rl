@@ -83,7 +83,7 @@ class Checkpointer:
             self._path.mkdir(parents=True, exist_ok=False)
         except FileExistsError:
             message = f"The checkpoint folder {self._path} already exists. "
-            message += "If you want to overwrite the folder please delete it manually."
+            message += "If you want to overwrite the folder please delete it manually. "
             message += "If you want to resume from a checkpoint set resume to True."
             logger.error(message)
 

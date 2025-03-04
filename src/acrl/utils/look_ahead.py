@@ -80,7 +80,8 @@ class LookAhead:
         return indices
 
     def _get_segment_indices(self, start: float, end: float) -> np.array:
-        return np.where((self._cum_distance >= start) & (self._cum_distance <= end))[0]
+        in_window = (self._cum_distance >= start) & (self._cum_distance <= end)
+        return np.nonzero(in_window)[0]
 
     def _is_wrapping(self, end_distance: float) -> bool:
         return self._track_length < end_distance
@@ -152,4 +153,6 @@ def distance_to_line(
 
 def points_to_segments(points: np.array) -> np.array:
     x, y = points[:, 0], points[:, 1]
-    return np.vstack((x[:-1], y[:-1], x[1:], y[1:])).T
+    segments = np.vstack((x[:-1], y[:-1], x[1:], y[1:])).T
+    final_segment = np.vstack((x[-1], y[-1], x[0], y[0])).T
+    return np.vstack([segments, final_segment])
