@@ -1,0 +1,75 @@
+wandb:
+    entity: aiml-l2r
+    project_name: ac-sac
+    run_name: silverstone-warmup-v1.0
+
+training:
+    n_train_steps: 10_000_000
+    batch_size: 128
+    buffer_size: 250_000
+    update_interval: 1
+    start_steps: 25_000
+    log_interval: 10
+    checkpoint:
+        interval: 200_000
+        path: data/checkpoints
+        n_to_keep: 5
+        resume: False
+        name: '0'
+    speed_reward_warmup:
+        max_speed_reward:
+            initial: 40.0
+            final: 300.0
+        n_truncated_eps: 14
+        n_warmup_eps: 130
+
+sac:
+    gamma: 0.992
+    n_steps: 3
+    entropy_lr: 0.0003
+    policy_lr: 0.0003
+    q_lr: 0.0003
+    n_layers: 2
+    target_update_coef: 0.005
+    log_interval: 100
+    policy:
+        feature_dim: 256
+        output_dim: 3
+    look_ahead:
+        track_path: data/tracks/silverstone-gp.npy
+        curvature:
+            distance_m: 300
+            n_points: 12
+        limits_LiDAR:
+            distance_m: 200
+            n_rays: 11
+
+aci:
+    race.ini:
+        RACE:
+            TRACK: "ks_silverstone"
+            CONFIG_TRACK: "gp"
+    video.ini:
+        VIDEO:
+            WIDTH: 1280
+            HEIGHT: 736
+    controls.ini:
+        X360:
+            SPEED_SENSITIVITY: 0.2
+    assists.ini:
+        ASSISTS:
+            TYRE_BLANKETS: 1
+    capture:
+        is_docker: False
+        is_proton: True
+        images:
+            image_format: BGR0
+            wait_for_new_frames: False
+        state:
+            use_dicts: True
+    termination:
+        check_every_n: 1000
+        max_consecutive_failures: 3
+    restart:
+        check_every_n: 1
+        max_consecutive_failures: 1
