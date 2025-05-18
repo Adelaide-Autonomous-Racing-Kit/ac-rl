@@ -20,6 +20,7 @@ from acrl.utils.constants import (
 )
 from acrl.utils.state import EnvironmentState
 from acrl.utils.warmup import SpeedRewardWarmUp
+
 import numpy as np
 import torch
 import wandb
@@ -199,6 +200,7 @@ class SACAgent(AssettoCorsaInterface):
         self._setup_checkpointer()
         self._setup_reward_warmup()
 
+
     def _unpack_config(self):
         self._n_step_buffer_states = self.cfg["sac"]["n_steps"]
         self._start_steps = self.cfg["training"]["start_steps"]
@@ -258,3 +260,4 @@ class SACAgent(AssettoCorsaInterface):
         config = self.cfg["training"]["speed_reward_warmup"]
         self._reward_warmup = SpeedRewardWarmUp(config)
         self._maximum_speed = config["max_speed_reward"]["final"]
+
