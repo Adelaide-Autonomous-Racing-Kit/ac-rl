@@ -1,7 +1,7 @@
 wandb:
     entity: aiml-l2r
     project_name: ac-sac
-    run_name: imola-speed-warmup-v0.1
+    run_name: imola-v1.0
 
 training:
     n_train_steps: 10_000_000

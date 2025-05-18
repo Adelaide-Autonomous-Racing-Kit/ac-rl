@@ -1,14 +1,14 @@
 wandb:
     entity: aiml-l2r
     project_name: ac-sac
-    run_name: monza-acg-v0.1
+    run_name: monza-v1.0
 
 training:
     n_train_steps: 10_000_000
     batch_size: 128
-    buffer_size: 200_000
+    buffer_size: 250_000
     update_interval: 1
-    start_steps: 20_000
+    start_steps: 25_000
     log_interval: 10
     checkpoint:
         interval: 200_000
